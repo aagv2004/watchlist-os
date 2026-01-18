@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { useContext } from "react";
 import { AuthContext } from "./context/AuthContext.jsx";
 import Login from "./pages/Login.jsx";
+import Register from "./pages/Register.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Layout from "./components/Layout.jsx";
 
@@ -10,9 +11,11 @@ function App() {
 
   return (
     <Routes>
+      <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
+
       <Route
-        path="/login"
-        element={!user ? <Login /> : <Navigate to="/dashboard" />}
+        path="/register"
+        element={!user ? <Register /> : <Navigate to="/" />}
       />
 
       {/* Rutas Protegidas */}
@@ -60,7 +63,7 @@ function App() {
           />
         </>
       ) : (
-        <Route path="*" element={<Navigate to="/login" />} />
+        <Route path="*" element={<Navigate to="/" />} />
       )}
 
       <Route

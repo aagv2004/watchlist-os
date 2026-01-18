@@ -2,6 +2,7 @@ import { useState, useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
 import api from "../api/axios.js";
 import { AlertCircle, LogIn, CheckCircle2, Info } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -145,6 +146,18 @@ const Login = () => {
           >
             Iniciar Sesión
           </button>
+
+          <div className="mt-8 text-center border-t border-gray-100 dark:border-zinc-900 pt-6">
+            <p className="text-sm text-gray-500 dark:text-zinc-400">
+              ¿No tienes una cuenta todavía?{" "}
+              <Link
+                to="/register"
+                className="text-black dark:text-white font-bold hover:underline underline-offset-4"
+              >
+                Regístrate gratis
+              </Link>
+            </p>
+          </div>
         </form>
       </div>
     </div>
