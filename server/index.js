@@ -8,11 +8,23 @@ import authRoutes from "./routes/authRoutes.js";
 
 const app = express();
 //Middleware
+const whitelist = [process.env.FRONTEND_URL, "http://localhost:5173"];
 app.use(
   cors({
-    origin: [process.env.FRONTEND_URL, "http://localhost:5173" || "*"],
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    origin: function (origin, callback) {
+      if (!origin || whitelist.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(
+          new Error(
+            "Error de CORS: Origen no permitido por la política (pd: esto lo escribiste tu mismo awuhejasf)",
+          ),
+        );
+      }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
 app.use(express.json());
