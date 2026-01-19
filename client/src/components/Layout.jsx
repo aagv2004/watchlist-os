@@ -140,7 +140,7 @@ const Layout = ({ children }) => {
 
       {/* Perfil Drawer para Móvil */}
       {isProfileOpen && (
-        <div className="fixed inset-0 z-[100] md:hidden">
+        <div className="fixed inset-0 z-[999] md:hidden">
           {/* Fondo oscuro traslúcido */}
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
