@@ -135,7 +135,7 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
     // Contenedor Principal
     <div className="fixed top-0 left-0 right-0 bottom-0 w-full h-screen bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center dark:bg-zinc-950/80">
       {/* Header */}
-      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 dark:bg-zinc-900 dark:border dark:border-zinc-800 dark:text-white">
+      <div className="bg-white w-[95%] max-w-lg rounded-3xl mx-auto p-6 shadow-2xl overflow-y-auto max-h-[90vh] animate-in fade-in zoom-in duration-200 dark:bg-zinc-900 dark:border dark:border-zinc-800 dark:text-white">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center dark:border-gray-500">
           <h2 className="text-xl font-bold">
             {itemToEdit ? "Actualizar información" : "Nuevo Ítem"}
