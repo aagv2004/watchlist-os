@@ -14,7 +14,7 @@ import { Link, useLocation } from "react-router-dom";
 
 const Layout = ({ children }) => {
   const { logout, user } = useContext(AuthContext);
-  const { isProfileOpen, setIsProfileOpen } = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const location = useLocation();
 
   const menuItems = [
