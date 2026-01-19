@@ -77,21 +77,24 @@ const Layout = ({ children }) => {
             <div className="flex flex-col items-end">
               <button
                 onClick={() => setDarkMode(!darkMode)}
-                className="p-2.5 bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-yellow-400 rounded-xl active:scale-95 transition-all"
+                className="p-2 bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-yellow-400 rounded-xl active:scale-95 transition-all mr-1"
               >
                 {darkMode ? <Sun size={18} /> : <Moon size={18} />}
               </button>
-              <span className="text-[8px] font-black text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full mb-0.5">
-                ONLINE
-              </span>
-              <p className="text-xs font-bold text-gray-600 truncate max-w-[70px]">
-                {user?.username}
-              </p>
+
+              <div className="flex flex-col items-end leading-tight mr-1">
+                <span className="text-[7px] font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-md mb-0.5 tracking-tighter">
+                  ONLINE
+                </span>
+                <p className="text-[11px] font-bold text-gray-700 dark:text-zinc-300 truncate max-w-[60px]">
+                  {user?.username}
+                </p>
+              </div>
             </div>
             {/* El botón de logout ahora vive aquí arriba en celulares */}
             <button
               onClick={logout}
-              className="p-2.5 bg-red-50 text-red-500 rounded-xl active:scale-95 transition-all"
+              className="p-2 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-xl active:scale-95 transition-all"
             >
               <LogOut size={18} />
             </button>
@@ -99,7 +102,7 @@ const Layout = ({ children }) => {
         </div>
 
         {/* MENU: Scroll horizontal en móvil, Vertical en PC */}
-        <nav className="flex flex-row md:flex-col gap-2 p-2 md:p-4 overflow-x-auto md:overflow-y-auto no-scrollbar">
+        <nav className="flex flex-row md:flex-col gap-2 p-2 px-4 md:p-4 overflow-x-auto md:overflow-y-auto no-scrollbar">
           {menuItems.map((item) => (
             <Link
               key={item.name}
