@@ -14,6 +14,7 @@ import { Link, useLocation } from "react-router-dom";
 
 const Layout = ({ children }) => {
   const { logout, user } = useContext(AuthContext);
+  const { isProfileOpen, setIsProfileOpen } = useState(false);
   const location = useLocation();
 
   const menuItems = [
@@ -72,31 +73,16 @@ const Layout = ({ children }) => {
             </div>
           </div>
 
-          {/* Info de usuario Y Logout para MÓVIL */}
-          <div className="md:hidden flex items-center gap-3">
-            <div className="flex flex-col items-end">
-              <button
-                onClick={() => setDarkMode(!darkMode)}
-                className="p-2 bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-yellow-400 rounded-xl active:scale-95 transition-all mr-1"
-              >
-                {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-              </button>
-
-              <div className="flex flex-col items-end leading-tight mr-1">
-                <span className="text-[7px] font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-md mb-0.5 tracking-tighter">
-                  ONLINE
-                </span>
-                <p className="text-[11px] font-bold text-gray-700 dark:text-zinc-300 truncate max-w-[60px]">
-                  {user?.username}
-                </p>
-              </div>
-            </div>
-            {/* El botón de logout ahora vive aquí arriba en celulares */}
+          {/* Info de usuario MÓVIL - VERSION MINIMALISTA */}
+          <div className="md:hidden flex items-center gap-2">
             <button
-              onClick={logout}
-              className="p-2 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-xl active:scale-95 transition-all"
+              onClick={() => setIsProfileOpen(true)} // Necesitaremos este estado
+              className="flex items-center gap-2 p-1.5 pr-3 bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl active:scale-95 transition-all"
             >
-              <LogOut size={18} />
+              <div className="w-8 h-8 bg-black dark:bg-white rounded-xl flex items-center justify-center text-white dark:text-black font-black text-xs">
+                {user?.username?.charAt(0).toUpperCase()}
+              </div>
+              <span className="text-xs font-bold dark:text-white">Perfil</span>
             </button>
           </div>
         </div>
@@ -151,6 +137,81 @@ const Layout = ({ children }) => {
       </aside>
 
       <div className="hidden md:block md:w-64 flex-shrink-0" />
+
+      {/* Perfil Drawer para Móvil */}
+      {isProfileOpen && (
+        <div className="fixed inset-0 z-[100] md:hidden">
+          {/* Fondo oscuro traslúcido */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setIsProfileOpen(false)}
+          />
+
+          {/* El Menú que sube */}
+          <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-zinc-950 rounded-t-[3rem] p-8 pb-12 animate-in slide-in-from-bottom duration-300 border-t border-gray-100 dark:border-zinc-800">
+            {/* Rayita decorativa para cerrar */}
+            <div className="w-12 h-1.5 bg-gray-200 dark:bg-zinc-800 rounded-full mx-auto mb-8" />
+
+            <div className="flex flex-col gap-6">
+              {/* Info del Usuario */}
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-black dark:bg-white rounded-3xl flex items-center justify-center text-white dark:text-black text-2xl font-black">
+                  {user?.username?.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      Online
+                    </span>
+                  </div>
+                  <h2 className="text-xl font-black dark:text-white truncate max-w-[200px]">
+                    {user?.username}
+                  </h2>
+                </div>
+              </div>
+
+              <div className="h-[1px] bg-gray-100 dark:bg-zinc-900 w-full" />
+
+              {/* Opciones de Accesibilidad */}
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => setDarkMode(!darkMode)}
+                  className="flex flex-col items-center justify-center gap-3 p-6 rounded-3xl bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 active:scale-95 transition-all"
+                >
+                  {darkMode ? (
+                    <>
+                      <Sun className="text-yellow-500" size={24} />
+                      <span className="text-xs font-bold dark:text-white">
+                        Modo Claro
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Moon className="text-gray-400" size={24} />
+                      <span className="text-xs font-bold text-gray-600">
+                        Modo Oscuro
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={logout}
+                  className="flex flex-col items-center justify-center gap-3 p-6 rounded-3xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 active:scale-95 transition-all group"
+                >
+                  <LogOut
+                    className="text-red-500 group-hover:translate-x-1 transition-transform"
+                    size={24}
+                  />
+                  <span className="text-xs font-bold text-red-600">
+                    Cerrar Sesión
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CONTENIDO PRINCIPAL o Principal Layout (lo que se ve al lado del sidebarXD) */}
       <main className="flex-1 p-4 md:p-8">
