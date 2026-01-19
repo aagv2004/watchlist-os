@@ -77,6 +77,7 @@ const Layout = ({ children }) => {
           <div className="md:hidden flex items-center gap-2">
             <button
               onClick={() => setIsProfileOpen(true)} // Necesitaremos este estado
+              onPointerDown={(e) => e.stopPropagation()}
               className="flex items-center gap-2 p-1.5 pr-3 bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl active:scale-95 transition-all"
             >
               <div className="w-8 h-8 bg-black dark:bg-white rounded-xl flex items-center justify-center text-white dark:text-black font-black text-xs">
