@@ -47,6 +47,18 @@ const Layout = ({ children }) => {
     }
   }, [darkMode]);
 
+  useEffect(() => {
+    if (isProfileOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unser";
+    }
+
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [isProfileOpen]);
+
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-gray-50 dark:bg-black transition-colors duration-300">
       {/* SIDEBAR */}
