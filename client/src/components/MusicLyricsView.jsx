@@ -233,12 +233,24 @@ const MusicLyricsView = ({ item, onClose, onEdit, onSaveLyrics }) => {
                     {" "}
                     {/* Espaciador fijo para evitar saltos */}
                     {!isEditing ? (
-                      <button
-                        onClick={() => setIsEditing(true)}
-                        className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all text-xs font-bold uppercase tracking-wider"
-                      >
-                        <Edit3 size={12} /> Editar Letra
-                      </button>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setShowTranslation(!showTranslation)}
+                          className={`flex items-center gap-2 px-5 py-1.5 rounded-full border transition-all duration-300 ${showTranslation ? "bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.4)]" : "bg-white/5 hover:bg-white/10 text-white/50 hover:text-white border-white/5 hover:border-white/20"}`}
+                        >
+                          <Languages size={12} />
+                          <span className="text-xs font-bold uppercase tracking-wider">
+                            {showTranslation ? "Original" : "Traducir"}
+                          </span>
+                        </button>
+
+                        <button
+                          onClick={() => setIsEditing(true)}
+                          className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all text-xs font-bold uppercase tracking-wider"
+                        >
+                          <Edit3 size={12} /> Editar
+                        </button>
+                      </div>
                     ) : (
                       /* BARRA DE HERRAMIENTAS EDITOR */
                       <div className="flex items-center gap-2 animate-in zoom-in duration-300 bg-black/40 backdrop-blur-xl px-4 py-2 rounded-full border border-white/10 shadow-2xl">
