@@ -85,6 +85,7 @@ const Music = Item.discriminator(
         title: String,
         duration: String,
         lyrics: String,
+        translation: String,
         completed: { type: Boolean, default: false },
       },
     ],

@@ -9,6 +9,7 @@ import {
   AlignCenter,
   AlignRight,
   Check,
+  Languages,
 } from "lucide-react";
 import Swal from "sweetalert2";
 
@@ -18,6 +19,7 @@ const MusicLyricsView = ({ item, onClose, onEdit, onSaveLyrics }) => {
     item.tracks[0]?.title,
   );
   const [isEditing, setIsEditing] = useState(false);
+  const [showTranslation, setShowTranslation] = useState(false);
   const editorRef = useRef(null);
 
   // Derivar el track activo siempre de la prop 'item' más reciente
@@ -52,7 +54,9 @@ const MusicLyricsView = ({ item, onClose, onEdit, onSaveLyrics }) => {
 
     // 2. Actualizar tracks
     const updatedTracks = item.tracks.map((t) =>
-      t.title === activeTrack.title ? { ...t, lyrics: newContent } : t,
+      t.title === activeTrack.title
+        ? { ...t, [showTranslation ? "translation" : "lyrics"]: newContent }
+        : t,
     );
 
     // 3. Guardar arriba
@@ -256,48 +260,43 @@ const MusicLyricsView = ({ item, onClose, onEdit, onSaveLyrics }) => {
                       contentEditable
                       suppressContentEditableWarning
                       dangerouslySetInnerHTML={{
-                        __html: activeTrack.lyrics
-                          ? activeTrack.lyrics.replace(/\n/g, "<br/>")
-                          : "",
+                        __html: showTranslation
+                          ? activeTrack.translation
+                            ? activeTrack.translation.replace(/\n/g, "<br/>")
+                            : "<i>(Escribe aquí la traducción...)</i>"
+                          : activeTrack.lyrics
+                            ? activeTrack.lyrics.replace(/\n/g, "<br/>")
+                            : "",
+                      }}
+                    />
+                  ) : // VISUALIZACIÓN LECTURA
+                  (
+                      showTranslation
+                        ? activeTrack.translation
+                        : activeTrack.lyrics
+                    ) ? (
+                    <div
+                      className="text-xl md:text-2xl leading-relaxed font-medium text-white/90 drop-shadow-md [&>div]:mb-4"
+                      dangerouslySetInnerHTML={{
+                        __html: showTranslation
+                          ? activeTrack.translation
+                          : activeTrack.lyrics,
                       }}
                     />
                   ) : (
-                    <div className="space-y-8 animate-in fade-in duration-500">
-                      {activeTrack.lyrics ? (
-                        // Si detectamos HTML (tags <br> o <p>), renderizamos HTML. Si no, fallback a split texto plano antiguo
-                        /<[a-z][\s\S]*>/i.test(activeTrack.lyrics) ? (
-                          <div
-                            className="text-xl md:text-2xl leading-relaxed font-medium text-white/90 drop-shadow-md [&>div]:mb-4"
-                            dangerouslySetInnerHTML={{
-                              __html: activeTrack.lyrics,
-                            }}
-                          />
+                    <div className="flex flex-col items-center justify-center h-full text-white/30 space-y-4">
+                      <div className="p-4 rounded-full bg-white/5">
+                        {showTranslation ? (
+                          <Languages size={32} />
                         ) : (
-                          // Fallback legacy (texto plano)
-                          activeTrack.lyrics.split("\n\n").map((verse, i) => (
-                            <p
-                              key={i}
-                              className="text-xl md:text-2xl leading-relaxed font-medium text-white/90 drop-shadow-md mb-8"
-                            >
-                              {verse.split("\n").map((line, j) => (
-                                <span key={j} className="block mb-1">
-                                  {line}
-                                </span>
-                              ))}
-                            </p>
-                          ))
-                        )
-                      ) : (
-                        <div className="flex flex-col items-center py-20 text-white/30">
-                          <span className="text-4xl mb-4 opacity-50">😶</span>
-                          <p className="text-lg font-medium">
-                            No hay letra disponible
-                          </p>
-                          <p className="text-sm mt-2">
-                            Haz click en "Editar Letra" para escribirla.
-                          </p>
-                        </div>
-                      )}
+                          <Music size={32} />
+                        )}
+                      </div>
+                      <p className="font-medium">
+                        {showTranslation
+                          ? "No hay traducción disponible"
+                          : "No hay letra disponible"}
+                      </p>
                     </div>
                   )}
                 </div>
