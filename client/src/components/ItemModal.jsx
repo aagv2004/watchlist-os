@@ -145,6 +145,40 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
     return () => clearTimeout(delayDebounceFn);
   }, [searchTerm, itemToEdit, formData.type]); // Añadimos formData.type para refrescar al cambiar tabs
 
+  // AUTO-DETECTAR EPISODIOS AL CAMBIAR DE TEMPORADA 📺
+  useEffect(() => {
+    // Solo actuamos si es Series/Anime, tiene ID de TMDB y hay una temporada válida
+    if (
+      (formData.type === "series" || formData.type === "anime") &&
+      formData.tmdbId &&
+      formData.season
+    ) {
+      const fetchSeasonData = async () => {
+        try {
+          // Pequeña pausa para no saturar si escriben rápido
+          const { data } = await api.get(
+            `/tmdb/series/${formData.tmdbId}/season/${formData.season}`,
+          );
+          if (data && data.episode_count) {
+            setFormData((prev) => ({
+              ...prev,
+              progress: {
+                ...prev.progress,
+                total: data.episode_count,
+              },
+            }));
+          }
+        } catch (error) {
+          console.error("No se pudo cargar data de la temporada:", error);
+          // No hacemos nada visualmente para no molestar, el usuario puede editar manual
+        }
+      };
+
+      const timeoutId = setTimeout(fetchSeasonData, 500); // Debounce de 500ms
+      return () => clearTimeout(timeoutId);
+    }
+  }, [formData.season, formData.tmdbId, formData.type]);
+
   // 4A. HOVER PREVIEW (La magia ⭐️)
   const handlePreviewSuggestion = (suggestion) => {
     setFormData((prev) => ({
@@ -254,12 +288,18 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
       delete cleanData.artist;
       delete cleanData.album;
       delete cleanData.tracks;
-    } else if (cleanData.type === "music") {
-      delete cleanData.season;
-      delete cleanData.progress;
-      delete cleanData.tmdbId;
       delete cleanData.year;
       // overview y poster pueden ser útiles en música también
+    }
+
+    // Lógica Inteligente: Si está marcado como "Completado" pero el progreso dice lo contrario (ej. Nueva temporada)
+    // Cambiamos automáticamente a "Viendo"
+    if (
+      cleanData.status === "completed" &&
+      cleanData.progress &&
+      cleanData.progress.current < cleanData.progress.total
+    ) {
+      cleanData.status = "watching";
     }
 
     try {

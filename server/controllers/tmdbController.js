@@ -34,3 +34,25 @@ export const searchContent = async (req, res) => {
     res.status(500).json({ message: "Error buscando en TMDB" });
   }
 };
+
+export const getSeasonDetailsController = async (req, res) => {
+  try {
+    const { id, season } = req.params;
+    const seasonData = await import("../services/tmdbService.js").then(
+      (module) => module.getSeasonDetails(id, season),
+    );
+
+    if (!seasonData) {
+      return res.status(404).json({ message: "Temporada no encontrada" });
+    }
+
+    res.json({
+      season_number: seasonData.season_number,
+      episode_count: seasonData.episodes.length,
+      air_date: seasonData.air_date,
+      name: seasonData.name,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error obteniendo detalles de temporada" });
+  }
+};

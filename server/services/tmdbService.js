@@ -26,3 +26,20 @@ export const searchMulti = async (query) => {
     return [];
   }
 };
+
+export const getSeasonDetails = async (tvId, seasonNumber) => {
+  try {
+    const response = await tmdbApi.get(`/tv/${tvId}/season/${seasonNumber}`, {
+      params: {
+        language: "es-ES",
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error(
+      `Error fetching season ${seasonNumber} for TV ${tvId}:`,
+      error.message,
+    );
+    return null; // Retornamos null si no existe la temporada (ej. temporada futura)
+  }
+};
