@@ -38,35 +38,71 @@ const MusicTrackManager = ({ tracks, onChange, artistName }) => {
     if (!artistName) return alert("¡Necesitas un Artista primero!");
 
     setIsFetchingLyrics(true);
-    const total = tracks.length;
     let updatedTracks = [...tracks];
+    let successCount = 0;
 
-    for (let i = 0; i < total; i++) {
-      const track = updatedTracks[i];
-      // Solo buscamos si NO tiene letra aún
-      if (!track.lyrics) {
-        setFetchingProgress(
-          `Buscando letra ${i + 1}/${total}: ${track.title}...`,
+    for (let i = 0; i < updatedTracks.length; i++) {
+      // Si ya tiene letra, no la sobreescribimos (salvo que quieras forzar)
+      if (updatedTracks[i].lyrics) continue;
+
+      setFetchingProgress(`(${i + 1}/${updatedTracks.length})`);
+
+      try {
+        // Using the imported 'api' (which is axios) for external lyrics API
+        const { data } = await api.get(
+          `https://api.lyrics.ovh/v1/${artistName}/${updatedTracks[i].title}`,
         );
-        try {
-          const { data } = await api.get("/music/lyrics", {
-            params: { artist: artistName, title: track.title },
-          });
 
-          if (data.lyrics) {
-            updatedTracks[i] = { ...track, lyrics: data.lyrics };
-            // Actualizamos visualmente paso a paso (opcional, pero da feeback)
-            onChange([...updatedTracks]);
+        if (data.lyrics) {
+          updatedTracks[i].lyrics = data.lyrics;
+
+          // AUTO-TRANSLATE CHAIN 🔗
+          try {
+            // Pequeña pausa para no saturar APIs
+            await new Promise((r) => setTimeout(r, 500));
+
+            // Usamos nuestro endpoint interno
+            const translateRes = await api.post("/translate", {
+              text: data.lyrics,
+            });
+            if (translateRes.data.translation) {
+              updatedTracks[i].translation = translateRes.data.translation;
+            }
+          } catch (trError) {
+            console.warn(
+              "Translation failed for track:",
+              updatedTracks[i].title,
+            );
           }
-        } catch (error) {
-          console.log(`No se encontró letra para ${track.title}`);
+
+          successCount++;
         }
+      } catch (error) {
+        console.warn(`No lyrics found for: ${updatedTracks[i].title}`);
       }
+
+      // Pequeño delay para no saturar la API pública
+      await new Promise((resolve) => setTimeout(resolve, 300));
     }
 
-    setFetchingProgress("¡Listo!");
+    onChange(updatedTracks); // Use onChange prop to update parent state
     setIsFetchingLyrics(false);
-    setTimeout(() => setFetchingProgress(""), 2000);
+    setFetchingProgress("");
+
+    if (successCount > 0) {
+      Swal.fire({
+        icon: "success",
+        title: "¡Letras encontradas!",
+        text: `Se añadieron letras (y traducciones) para ${successCount} canciones.`,
+        timer: 2000,
+      });
+    } else {
+      Swal.fire({
+        icon: "info",
+        title: "Sin resultados",
+        text: "No pudimos encontrar letras automáticas. Intenta añadir manualmente.",
+      });
+    }
   };
 
   return (

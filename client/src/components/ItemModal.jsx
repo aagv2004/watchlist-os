@@ -663,7 +663,7 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
 
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1.5">
-                  Sinopsis
+                  Resumen
                 </label>
                 <textarea
                   rows={3}
