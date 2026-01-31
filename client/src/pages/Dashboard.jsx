@@ -566,7 +566,7 @@ const Dashboard = () => {
 
                       <span className="text-[10px] font-black uppercase tracking-wider">
                         {item.type === "movie"
-                          ? "Cine"
+                          ? "Película"
                           : item.type === "series"
                             ? "Serie"
                             : item.type === "anime"

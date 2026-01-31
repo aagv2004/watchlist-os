@@ -166,8 +166,8 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
       // Intentamos ser inteligentes con los capítulos si es serie
       progress:
         suggestion.type === "series" || suggestion.type === "anime"
-          ? { current: 0, total: 12 } // Default para anime/series comúnmente
-          : prev.progress,
+          ? { current: 0, total: 12 }
+          : { current: 0, total: 1 }, // Reset para películas/música
     }));
   };
 
