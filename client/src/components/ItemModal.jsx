@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   X,
   Search,
@@ -8,12 +8,15 @@ import {
   Music,
   Image as ImageIcon,
   Loader2,
+  Star,
+  Calendar,
 } from "lucide-react";
-import Swal from "sweetalert2"; // Importamos SweetAlert
+import Swal from "sweetalert2";
 import api from "../api/axios";
+import MusicTrackManager from "./MusicTrackManager";
 
 const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
-  // 1. ESTADOS (Mantenemos tu estructura completa)
+  // 1. ESTADOS
   const [formData, setFormData] = useState({
     title: "",
     type: "movie",
@@ -27,7 +30,7 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
     artist: "",
     album: "",
     tracks: [],
-    tmdbId: null, // Agregado para guardar referencia
+    tmdbId: null,
   });
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -35,12 +38,26 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // Estado para revertir si el usuario solo estaba "mirando" (hover) y no seleccionó nada
+  const [backupFormData, setBackupFormData] = useState(null);
+
+  // Ref para tener siempre el estado más reciente de formData sin causar re-renders
+  // Esto soluciona la advertencia del useEffect sin romper la lógica
+  const formDataRef = useRef(formData);
+  const showSuggestionsRef = useRef(showSuggestions);
+  const ignoreSearchRef = useRef(false); // <--- NUEVO: Para evitar re-búsqueda al seleccionar
+
+  // Mantenemos las referencias actualizadas
+  useEffect(() => {
+    formDataRef.current = formData;
+    showSuggestionsRef.current = showSuggestions;
+  }, [formData, showSuggestions]);
+
   // 2. EFECTO DE CARGA / EDICIÓN
   useEffect(() => {
     if (itemToEdit) {
       setFormData({
         ...itemToEdit,
-        // Aseguramos valores por defecto para evitar errores
         progress: itemToEdit.progress || { current: 0, total: 1 },
         poster: itemToEdit.poster || "",
         overview: itemToEdit.overview || "",
@@ -48,38 +65,74 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
       });
       setSearchTerm(itemToEdit.title);
     } else {
-      // Reset para crear nuevo
-      setFormData({
-        title: "",
-        type: "movie",
-        status: "pending",
-        rating: 0,
-        season: 1,
-        progress: { current: 0, total: 12 },
-        poster: "",
-        overview: "",
-        year: "",
-        artist: "",
-        album: "",
-        tracks: [],
-        tmdbId: null,
-      });
-      setSearchTerm("");
+      resetForm();
     }
-    setSuggestions([]);
   }, [itemToEdit, isOpen]);
 
-  // 3. BUSCADOR EN TMDB (Tu lógica conectada al endpoint)
+  const resetForm = () => {
+    setFormData({
+      title: "",
+      type: "movie",
+      status: "pending",
+      rating: 0,
+      season: 1,
+      progress: { current: 0, total: 12 },
+      poster: "",
+      overview: "",
+      year: "",
+      artist: "",
+      album: "",
+      tracks: [],
+      tmdbId: null,
+    });
+    setSearchTerm("");
+    setSuggestions([]);
+  };
+
+  // 3. BUSCADOR EN TMDB
+  // 3. BUSCADOR EN TMDB & MÚSICA
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
+      // Si acabamos de seleccionar manualmente, IGNORAMOS la búsqueda esta vez
+      if (ignoreSearchRef.current) {
+        ignoreSearchRef.current = false;
+        return;
+      }
+
+      // Usamos el validador directo de la longitud
       if (searchTerm.length > 2 && !itemToEdit) {
         setIsSearching(true);
         try {
-          const { data } = await api.get(`/tmdb/search?query=${searchTerm}`);
-          setSuggestions(data);
+          if (!showSuggestionsRef.current) {
+            setBackupFormData({ ...formDataRef.current });
+          }
+
+          let responseData = [];
+
+          // RAMA MÚSICA 🎵 vs RAMA VIDEO 🎬
+          if (formData.type === "music") {
+            const { data } = await api.get(`/music/search?query=${searchTerm}`);
+            responseData = data;
+          } else {
+            const { data } = await api.get(`/tmdb/search?query=${searchTerm}`);
+
+            // Procesamiento de Anime
+            responseData = data.map((item) => {
+              if (
+                item.type === "series" &&
+                (item.original_language === "ja" ||
+                  item.origin_country?.includes("JP"))
+              ) {
+                return { ...item, type: "anime" };
+              }
+              return item;
+            });
+          }
+
+          setSuggestions(responseData);
           setShowSuggestions(true);
         } catch (error) {
-          console.error("Error buscando en TMDB:", error);
+          console.error("Error buscando:", error);
         } finally {
           setIsSearching(false);
         }
@@ -90,29 +143,66 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
     }, 500);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm, itemToEdit]);
+  }, [searchTerm, itemToEdit, formData.type]); // Añadimos formData.type para refrescar al cambiar tabs
 
-  // 4. MANEJADOR DE SELECCIÓN (Autocompletado)
-  const handleSelectSuggestion = (suggestion) => {
-    setFormData({
-      ...formData,
+  // 4A. HOVER PREVIEW (La magia ⭐️)
+  const handlePreviewSuggestion = (suggestion) => {
+    setFormData((prev) => ({
+      ...prev,
       title: suggestion.title,
       poster: suggestion.poster,
       overview: suggestion.overview,
       year: suggestion.year,
       type: suggestion.type,
       tmdbId: suggestion.tmdbId,
-      rating: 0, // El rating lo pone el usuario
-    });
-    setSearchTerm(suggestion.title);
-    setShowSuggestions(false);
+      // MÚSICA
+      artist: suggestion.artist || "",
+      album: suggestion.type === "music" ? suggestion.title : "", // En música, el título suele ser el Álbum en nuestra búsqueda de iTunes
+      rating: suggestion.rating || 0, // ¡Autrellenado de Rating!
+      season:
+        suggestion.type === "series" || suggestion.type === "anime"
+          ? 1
+          : prev.season,
+      // Intentamos ser inteligentes con los capítulos si es serie
+      progress:
+        suggestion.type === "series" || suggestion.type === "anime"
+          ? { current: 0, total: 12 } // Default para anime/series comúnmente
+          : prev.progress,
+    }));
   };
 
-  // 5. HANDLESUBMIT (¡TU LÓGICA CON SWEETALERTS RECUPERADA!)
+  // 4B. SELECCIÓN FINAL (Confirmar)
+  const handleSelectSuggestion = async (suggestion) => {
+    ignoreSearchRef.current = true; // <--- Bloqueamos la búsqueda automática
+    handlePreviewSuggestion(suggestion); // Aseguramos que los datos estén puestos
+    setSearchTerm(suggestion.title);
+    setShowSuggestions(false);
+    setBackupFormData(null); // Ya no necesitamos revertir, el usuario confirmó
+
+    // Si es música, buscamos los tracks reales
+    if (suggestion.type === "music" && suggestion.tmdbId) {
+      try {
+        // Pequeño feedback visual podría ir aquí, pero por rapidez solo haremos el fetch
+        const { data: tracks } = await api.get(
+          `/music/album/${suggestion.tmdbId}`,
+        );
+        setFormData((prev) => ({
+          ...prev,
+          tracks: tracks,
+        }));
+      } catch (error) {
+        console.error("Error cargando canciones:", error);
+      }
+    }
+  };
+
+  // 4C. SALIR DEL HOVER (Opcional: Revertir si se desea, o dejar la última vista)
+  // Por ahora lo dejamos "sticky" (pegajoso) porque se siente mejor UX no perder lo que viste.
+
+  // 5. HANDLESUBMIT
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Configuración del Toast
     const Toast = Swal.mixin({
       toast: true,
       position: "top-end",
@@ -123,33 +213,18 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
         toast.onmouseenter = Swal.stopTimer;
         toast.onmouseleave = Swal.resumeTimer;
       },
-      // Ajuste para modo oscuro automático si usas clases 'dark' en body
       customClass: {
         popup: "dark:bg-zinc-800 dark:text-white",
       },
     });
 
-    // --- TUS VALIDACIONES ---
     if (formData.progress.total <= 0) {
       return Toast.fire({
         icon: "warning",
         title: "¡El total de capítulos debe ser mayor a 0!",
       });
     }
-    if (formData.progress.current < 0) {
-      return Toast.fire({
-        icon: "warning",
-        title: "¡No puedes tener capítulos negativos!",
-      });
-    }
-    if (formData.progress.current > formData.progress.total) {
-      return Toast.fire({
-        icon: "warning",
-        title: "¡El actual no puede superar al total!",
-      });
-    }
 
-    // --- LÓGICA DE ESTADO AUTOMÁTICO ---
     let finalStatus = formData.status;
     if (
       formData.progress.current === formData.progress.total &&
@@ -160,24 +235,39 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
       finalStatus = "watching";
     }
 
-    // --- LÓGICA DE TÍTULO DE MÚSICA ---
-    let finalTitle = searchTerm; // Usamos lo que está en el input visualmente
+    let finalTitle = searchTerm;
     if (formData.type === "music") {
       finalTitle = formData.artist || formData.album || "Artista Desconocido";
     }
 
-    const dataToSend = {
-      ...formData,
-      title: finalTitle,
-      status: finalStatus,
-    };
+    // LIMPIEZA DE DATOS PARA EL BACKEND (Discriminadores)
+    // Eliminamos campos que no corresponden al tipo para evitar errores de validación
+    const cleanData = { ...formData, title: finalTitle, status: finalStatus };
+
+    if (cleanData.type === "movie") {
+      delete cleanData.season;
+      // delete cleanData.progress; // AHORA SÍ queremos progreso en películas (0/1)
+      delete cleanData.artist;
+      delete cleanData.album;
+      delete cleanData.tracks;
+    } else if (cleanData.type === "series" || cleanData.type === "anime") {
+      delete cleanData.artist;
+      delete cleanData.album;
+      delete cleanData.tracks;
+    } else if (cleanData.type === "music") {
+      delete cleanData.season;
+      delete cleanData.progress;
+      delete cleanData.tmdbId;
+      delete cleanData.year;
+      // overview y poster pueden ser útiles en música también
+    }
 
     try {
       if (itemToEdit) {
-        await api.put(`/items/${itemToEdit._id}`, dataToSend);
+        await api.put(`/items/${itemToEdit._id}`, cleanData);
         Toast.fire({ icon: "success", title: "¡Información Actualizada!" });
       } else {
-        await api.post("/items", dataToSend);
+        await api.post("/items", cleanData);
         Toast.fire({ icon: "success", title: "¡Añadido a tu biblioteca!" });
       }
 
@@ -254,18 +344,22 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
           {/* BUSCADOR */}
           <div className="relative z-20">
             <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5 ml-1">
-              Título
+              {formData.type === "music" ? "Buscar Música (iTunes)" : "Título"}
             </label>
-            <div className="relative">
+            <div className="relative group">
               <input
                 type="text"
-                placeholder="Escribe para buscar en TMDB..."
+                placeholder={
+                  formData.type === "music"
+                    ? "Ej: Pink Floyd, Adele, Bad Bunny..."
+                    : "Escribe para buscar..."
+                }
                 className="w-full bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 text-lg font-semibold p-4 pl-12 rounded-2xl outline-none focus:ring-2 ring-black dark:ring-white transition-all dark:text-white"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onFocus={() => setShowSuggestions(true)}
               />
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-black dark:group-focus-within:text-white transition-colors">
                 {isSearching ? (
                   <Loader2 size={20} className="animate-spin" />
                 ) : (
@@ -274,39 +368,84 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
               </div>
             </div>
 
-            {/* SUGERENCIAS */}
+            {/* SUGERENCIAS (COMMAND PALETTE STYLE) */}
             {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-zinc-800 rounded-2xl shadow-xl border border-gray-100 dark:border-zinc-700 overflow-hidden max-h-60 overflow-y-auto z-50">
-                {suggestions.map((sugg) => (
-                  <button
-                    key={sugg.tmdbId}
-                    type="button"
-                    onClick={() => handleSelectSuggestion(sugg)}
-                    className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-zinc-700 transition-colors text-left border-b border-gray-50 dark:border-zinc-700/50 last:border-0"
-                  >
-                    {sugg.poster ? (
-                      <img
-                        src={sugg.poster}
-                        alt=""
-                        className="w-10 h-14 object-cover rounded-md bg-gray-200"
-                      />
-                    ) : (
-                      <div className="w-10 h-14 bg-gray-200 dark:bg-zinc-600 rounded-md flex items-center justify-center">
-                        <Film size={16} className="opacity-50" />
+              <>
+                {/* BACKDROP INVISIBLE PARA CERRAR AL TOCAR AFUERA (Móvil Friendly 📱) */}
+                <div
+                  className="fixed inset-0 z-40 bg-black/5 backdrop-blur-[1px]"
+                  onClick={() => setShowSuggestions(false)}
+                />
+
+                <div
+                  className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-zinc-700 overflow-hidden max-h-72 overflow-y-auto z-50 ring-4 ring-black/5 dark:ring-white/5 animate-in fade-in slide-in-from-top-2"
+                  onMouseLeave={() => {
+                    // Opcional: Si sale del área de sugerencias, ¿hacemos algo?
+                  }}
+                >
+                  <div className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50 dark:bg-zinc-800/50 sticky top-0 backdrop-blur-sm z-10">
+                    Sugerencias
+                  </div>
+                  {suggestions.map((sugg) => (
+                    <button
+                      key={sugg.tmdbId}
+                      type="button"
+                      // EVENTOS CLAVE:
+                      onMouseEnter={() => handlePreviewSuggestion(sugg)}
+                      onClick={() => handleSelectSuggestion(sugg)}
+                      className="w-full flex items-center gap-4 p-3 hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-left group border-b border-gray-50 dark:border-zinc-800 last:border-0"
+                    >
+                      {sugg.poster ? (
+                        <img
+                          src={sugg.poster}
+                          alt=""
+                          className="w-12 h-16 object-cover rounded-lg shadow-sm group-hover:scale-105 transition-transform"
+                        />
+                      ) : (
+                        <div className="w-12 h-16 bg-gray-200 dark:bg-zinc-800 rounded-lg flex items-center justify-center">
+                          <Film size={20} className="opacity-30" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sm dark:text-white truncate group-hover:text-black dark:group-hover:text-white">
+                          {sugg.title}
+                        </p>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-zinc-400">
+                          <span className="flex items-center gap-1 bg-gray-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
+                            <Calendar size={10} />
+                            {sugg.year}
+                          </span>
+                          {sugg.type === "music" ? (
+                            <>
+                              <span className="flex items-center gap-1 bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-500 px-1.5 py-0.5 rounded font-bold max-w-[120px] truncate">
+                                <Music size={10} className="stroke-[3]" />
+                                {sugg.artist}
+                              </span>
+                              <span className="text-gray-400 dark:text-zinc-500 truncate max-w-[100px]">
+                                {sugg.overview?.split("-")[0]} {/* Género */}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="flex items-center gap-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-500 px-1.5 py-0.5 rounded font-bold">
+                                <Star size={10} className="fill-current" />
+                                {sugg.rating}
+                              </span>
+                              <span className="capitalize">
+                                {sugg.type === "movie"
+                                  ? "Pelicula"
+                                  : sugg.type === "anime"
+                                    ? "Anime"
+                                    : "Serie"}
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
-                    )}
-                    <div>
-                      <p className="font-bold text-sm dark:text-white line-clamp-1">
-                        {sugg.title}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-zinc-400">
-                        {sugg.year} •{" "}
-                        {sugg.type === "movie" ? "Pelicula" : "Serie"}
-                      </p>
-                    </div>
-                  </button>
-                ))}
-              </div>
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
           </div>
 
@@ -314,12 +453,12 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
           <div className="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-6">
             {/* IZQUIERDA: POSTER */}
             <div className="flex flex-col gap-2">
-              <div className="relative aspect-[2/3] w-full md:w-[140px] rounded-2xl overflow-hidden bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 shadow-inner group">
+              <div className="relative aspect-[2/3] w-full md:w-[140px] rounded-2xl overflow-hidden bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 shadow-inner group transition-all duration-500">
                 {formData.poster ? (
                   <img
                     src={formData.poster}
                     alt="Poster"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover transition-opacity duration-300 animate-in fade-in"
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full text-gray-300 dark:text-zinc-600">
@@ -350,7 +489,7 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
                     Estado
                   </label>
                   <select
-                    className="w-full bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 p-3 rounded-xl text-sm font-medium outline-none focus:ring-2 ring-black dark:text-white appearance-none"
+                    className="w-full bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 p-3 rounded-xl text-sm font-medium outline-none focus:ring-2 ring-black dark:text-white appearance-none transition-all"
                     value={formData.status}
                     onChange={(e) =>
                       setFormData({ ...formData, status: e.target.value })
@@ -367,25 +506,28 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
                   <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1.5">
                     Rating ({formData.rating}/5)
                   </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="5"
-                    step="0.5"
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-zinc-700 accent-black dark:accent-white mt-3"
-                    value={formData.rating}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        rating: Number(e.target.value),
-                      })
-                    }
-                  />
+                  <div className="relative flex items-center">
+                    <input
+                      type="range"
+                      min="0"
+                      max="5"
+                      step="0.5"
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-zinc-700 accent-black dark:accent-white z-10"
+                      value={formData.rating}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          rating: Number(e.target.value),
+                        })
+                      }
+                    />
+                    {/* Estrellitas visuales background si quisieras, por ahora simple */}
+                  </div>
                 </div>
               </div>
 
               {(formData.type === "series" || formData.type === "anime") && (
-                <div className="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-2xl border border-gray-100 dark:border-zinc-800 space-y-3">
+                <div className="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-2xl border border-gray-100 dark:border-zinc-800 space-y-3 animate-in slide-in-from-top-2 fade-in">
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">
@@ -444,24 +586,39 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
 
               {/* MÚSICA (Campos extra) */}
               {formData.type === "music" && (
-                <div className="grid grid-cols-2 gap-4">
-                  <input
-                    placeholder="Artista"
-                    className="w-full bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 p-3 rounded-xl text-sm outline-none dark:text-white"
-                    value={formData.artist}
-                    onChange={(e) =>
-                      setFormData({ ...formData, artist: e.target.value })
-                    }
-                  />
-                  <input
-                    placeholder="Álbum"
-                    className="w-full bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 p-3 rounded-xl text-sm outline-none dark:text-white"
-                    value={formData.album}
-                    onChange={(e) =>
-                      setFormData({ ...formData, album: e.target.value })
-                    }
-                  />
-                </div>
+                <>
+                  <div className="grid grid-cols-2 gap-4 animate-in slide-in-from-top-2 fade-in">
+                    <input
+                      placeholder="Artista"
+                      className="w-full bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 p-3 rounded-xl text-sm outline-none dark:text-white"
+                      value={formData.artist}
+                      onChange={(e) =>
+                        setFormData({ ...formData, artist: e.target.value })
+                      }
+                    />
+                    <input
+                      placeholder="Álbum"
+                      className="w-full bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 p-3 rounded-xl text-sm outline-none dark:text-white"
+                      value={formData.album}
+                      onChange={(e) =>
+                        setFormData({ ...formData, album: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div className="mt-4">
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">
+                      Lista de Canciones & Letras
+                    </label>
+                    <MusicTrackManager
+                      tracks={formData.tracks || []}
+                      artistName={formData.artist}
+                      onChange={(newTracks) =>
+                        setFormData({ ...formData, tracks: newTracks })
+                      }
+                    />
+                  </div>
+                </>
               )}
 
               <div>
@@ -470,7 +627,7 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
                 </label>
                 <textarea
                   rows={3}
-                  className="w-full bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 p-3 rounded-xl text-sm outline-none resize-none dark:text-white placeholder:text-gray-300"
+                  className="w-full bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 p-3 rounded-xl text-sm outline-none resize-none dark:text-white placeholder:text-gray-300 transition-all"
                   placeholder={formData.overview || "Escribe algo..."}
                   value={formData.overview}
                   onChange={(e) =>
@@ -492,7 +649,7 @@ const ItemModal = ({ isOpen, onClose, onRefresh, itemToEdit }) => {
           </button>
           <button
             onClick={handleSubmit}
-            className="px-8 py-3 rounded-xl font-bold text-sm bg-black text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-gray-200 transition-colors flex items-center gap-2 shadow-lg shadow-black/10"
+            className="px-8 py-3 rounded-xl font-bold text-sm bg-black text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-gray-200 transition-colors flex items-center gap-2 shadow-lg shadow-black/10 hover:shadow-xl hover:scale-105 transform duration-200"
           >
             <Save size={18} />
             Guardar

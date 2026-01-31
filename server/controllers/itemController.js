@@ -1,10 +1,25 @@
-import Item from "../models/Items.js";
+import Item, { Movie, Series, Anime, Music } from "../models/Items.js";
 
 // 1. Crear un nuevo item
 export const createItem = async (req, res) => {
   try {
     // Creamos una nueva instancia del modelo Item
-    const newItem = new Item({
+    // DEBUG: Ver qué datos llegan para entender el error 500
+    console.log("📥 [Backend] Intentando crear item de tipo:", req.body.type);
+    console.log("📦 Datos recibidos:", JSON.stringify(req.body, null, 2));
+
+    // Seleccionamos el modelo correcto según el tipo
+    const models = {
+      movie: Movie,
+      series: Series,
+      anime: Anime,
+      music: Music,
+    };
+
+    const Model = models[req.body.type] || Item;
+
+    // Creamos la instancia usando el modelo específico
+    const newItem = new Model({
       ...req.body,
       userId: req.user._id,
     });
@@ -19,6 +34,7 @@ export const createItem = async (req, res) => {
     }
 
     if (
+      req.body.progress &&
       req.body.progress.current === req.body.progress.total &&
       req.body.progress.total > 0
     ) {
@@ -31,6 +47,7 @@ export const createItem = async (req, res) => {
     //respondemos al frontend con el item creado
     res.status(201).json(savedItem);
   } catch (error) {
+    console.error("❌ [Backend] Error creando item:", error); // Log completo del error
     // Si algo sale mal, enviamos un error
     res
       .status(500)
@@ -61,6 +78,7 @@ export const getItems = async (req, res) => {
 // 3. Actualizar
 export const updateItem = async (req, res) => {
   try {
+    // 1. Buscamos el item para saber su TIPO y obtener la instancia correcta
     const item = await Item.findOne({
       _id: req.params.id,
       userId: req.user._id,
@@ -72,13 +90,21 @@ export const updateItem = async (req, res) => {
         .json({ message: "Ítem no encontrado o no autorizado" });
     }
 
-    const updatedItem = await Item.findByIdAndUpdate(
-      req.params.id,
-      { ...req.body },
-      { new: true, runValidators: true }, // Devuelve el item ya actualizado, no el viejo.
-    );
+    // 2. IMPORTANTE: Para que Mongoose guarde campos de subclases (como 'season' en Series),
+    // debemos hacer el update usando los campos directamente en el documento recuperado
+    // o usando el modelo específico. El método más robusto aquí es:
+
+    // Actualizamos campos manualmente para asegurar que el discriminador funcione
+    Object.keys(req.body).forEach((key) => {
+      item[key] = req.body[key];
+    });
+
+    // 3. Guardamos (Mongoose validará según el tipo del discriminador)
+    const updatedItem = await item.save();
+
     res.status(200).json(updatedItem);
   } catch (error) {
+    console.error("Error updating item:", error);
     res
       .status(400)
       .json({ message: "Error al actualizar", error: error.message });

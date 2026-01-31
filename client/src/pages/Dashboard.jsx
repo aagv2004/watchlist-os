@@ -12,6 +12,7 @@ import {
   Mic,
   Sun,
   Moon,
+  Edit3,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import api from "../api/axios.js";
@@ -65,14 +66,30 @@ const Dashboard = () => {
         newStatus = "watching";
       }
 
+      // OPTIMISTIC UI: Actualizamos visualmente ANTES de ir al servidor
+      // Esto hace que la app se sienta instantánea ⚡️
+      setItems((prevItems) =>
+        prevItems.map((i) =>
+          i._id === item._id
+            ? {
+                ...i,
+                status: newStatus,
+                progress: { ...i.progress, current: newCurrent },
+              }
+            : i,
+        ),
+      );
+
       try {
-        // 3. Llamada a la API
+        // 3. Llamada a la API (en segundo plano)
         await api.put(`/items/${item._id}`, {
           progress: { ...item.progress, current: newCurrent },
           status: newStatus,
         });
 
-        fetchItems();
+        // No necesitamos fetchItems() aquí si confiamos en nuestra actualización optimista
+        // fetchItems();
+
         const Toast = Swal.mixin({
           toast: true,
           position: "top-end",
@@ -86,22 +103,62 @@ const Dashboard = () => {
         });
       } catch (error) {
         console.error("Error al actualizar", error);
+        // Si falla, revertimos los cambios (Rollback)
+        setItems((prevItems) =>
+          prevItems.map((i) => (i._id === item._id ? item : i)),
+        );
         Swal.fire("Error", "No se pudo actualizar el progreso", "error");
       }
     }
   };
 
+  // SMART STATUS UPDATE (Música)
+  const handleSmartStatusUpdate = async (item, newStatus) => {
+    // 1. Optimistic Update Local
+    const updatedItems = items.map((i) =>
+      i._id === item._id ? { ...i, status: newStatus } : i,
+    );
+    setItems(updatedItems);
+
+    // 2. Call API
+    try {
+      await api.put(`/items/${item._id}`, { status: newStatus });
+    } catch (error) {
+      console.error("Error smart update", error);
+      fetchItems(); // Revertir si falla
+    }
+  };
+
   const handleDelete = async (id) => {
     const result = await Swal.fire({
-      title: "¿Eliminar elemento?",
-      text: "Esta acción no se puede deshacer",
+      title: "¿Eliminar?",
+      text: "No podrás deshacer esto.",
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#000000",
-      cancelButtonColor: "#ef4444",
-      confirmButtonText: "Sí, eliminar",
+      cancelButtonColor: "#f3f4f6",
+      confirmButtonText: "Sí, borrar",
       cancelButtonText: "Cancelar",
-      borderRadius: "24px",
+      reverseButtons: false, // Borrar a la izquierda, Cancelar a la derecha
+      focusCancel: true,
+
+      // PERSONALIZACIÓN VISUAL PARA QUE NO SEA INVASIVO
+      background: document.documentElement.classList.contains("dark")
+        ? "#18181b"
+        : "#ffffff",
+      color: document.documentElement.classList.contains("dark")
+        ? "#ffffff"
+        : "#000000",
+      customClass: {
+        popup:
+          "rounded-3xl border border-gray-100 dark:border-zinc-800 shadow-2xl",
+        confirmButton:
+          "bg-black text-white px-6 py-3 rounded-xl font-bold hover:scale-105 transition-transform dark:bg-white dark:text-black",
+        cancelButton:
+          "bg-gray-100 text-gray-500 px-6 py-3 rounded-xl font-bold hover:bg-gray-200 transition-colors dark:bg-zinc-800 dark:text-gray-400 dark:hover:bg-zinc-700 dark:hover:text-white ml-3",
+        title: "text-xl font-black",
+      },
+      buttonsStyling: false, // Importante para que tome nuestras clases
     });
 
     if (result.isConfirmed) {
@@ -110,9 +167,17 @@ const Dashboard = () => {
         fetchItems();
         Swal.fire({
           title: "¡Eliminado!",
+          text: "El item ha sido borrado correctamente.",
           icon: "success",
-          timer: 1000,
+          timer: 1500,
           showConfirmButton: false,
+          color: "#000",
+          background: "#fff",
+          customClass: {
+            popup:
+              "rounded-3xl shadow-2xl border border-gray-100 dark:bg-zinc-900 dark:border-zinc-800 dark:text-white",
+            title: "text-xl font-black",
+          },
         });
       } catch (error) {
         Swal.fire("Error", `No se pudo eliminar: ${error}`, "error");
@@ -191,6 +256,13 @@ const Dashboard = () => {
     dropped: "Abandonado",
   };
 
+  const musicStatusTranslation = {
+    pending: "Por escuchar",
+    watching: "Escuchando",
+    completed: "Escuchado",
+    dropped: "Archivado",
+  };
+
   useEffect(() => {
     fetchItems();
   }, []);
@@ -220,6 +292,36 @@ const Dashboard = () => {
       }
     }
   }, [loading, items.length, processedItems, hasNotifiedInactive]);
+
+  const handleLyricsSave = async (originalItem, updatedTracks) => {
+    // 1. Optimistic Update (UI immediata)
+    const updatedItem = { ...originalItem, tracks: updatedTracks };
+
+    setItems((prev) =>
+      prev.map((i) => (i._id === originalItem._id ? updatedItem : i)),
+    );
+    if (selectedItemForLyrics?._id === originalItem._id) {
+      setSelectedItemForLyrics(updatedItem);
+    }
+
+    // 2. Persistencia Backend
+    try {
+      await api.put(`/items/${originalItem._id}`, { tracks: updatedTracks });
+
+      const Toast = Swal.mixin({
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      });
+      Toast.fire({ icon: "success", title: "¡Letra guardada!" });
+    } catch (error) {
+      console.error("Error saving lyrics", error);
+      Swal.fire("Error", "No se pudo guardar la letra", "error");
+      fetchItems(); // Revertir
+    }
+  };
 
   return (
     <>
@@ -332,7 +434,39 @@ const Dashboard = () => {
                     onClick={() => setIsStatusOpen(false)}
                   />
                   <div className="absolute right-0 mt-2 w-full sm:w-52 bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-gray-100 dark:border-zinc-800 z-50 overflow-hidden">
-                    {/* ... (aquí van tus .map de opciones igual que antes) ... */}
+                    {["all", "pending", "watching", "completed", "dropped"].map(
+                      (status) => (
+                        <button
+                          key={status}
+                          onClick={() => {
+                            setStatusFilter(status);
+                            setIsStatusOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-3 text-sm font-medium hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors flex items-center gap-3 ${
+                            statusFilter === status
+                              ? "bg-gray-50 dark:bg-zinc-800 text-black dark:text-white"
+                              : "text-gray-500 dark:text-gray-400"
+                          }`}
+                        >
+                          <div
+                            className={`w-2 h-2 rounded-full ${
+                              status === "pending"
+                                ? "bg-purple-400"
+                                : status === "watching"
+                                  ? "bg-amber-400"
+                                  : status === "completed"
+                                    ? "bg-emerald-400"
+                                    : status === "dropped"
+                                      ? "bg-red-400"
+                                      : "bg-gray-400"
+                            }`}
+                          />
+                          {status === "all"
+                            ? "Todos"
+                            : statusTranslation[status]}
+                        </button>
+                      ),
+                    )}
                   </div>
                 </>
               )}
@@ -351,161 +485,269 @@ const Dashboard = () => {
             {filteredItems.map((item) => (
               <div
                 key={item._id}
-                className="bg-white dark:bg-zinc-900 p-5 rounded-3xl border border-gray-100 dark:border-zinc-800 shadow-sm hover:shadow-md transition-all"
+                className="group relative bg-white dark:bg-zinc-900 rounded-3xl border border-gray-100 dark:border-zinc-800 shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden flex flex-col h-[400px]"
               >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="p-2 bg-gray-50 dark:bg-zinc-800 rounded-xl text-gray-600 dark:text-gray-400">
-                    {item.type === "movie" && <Film size={18} />}
-                    {item.type === "series" && <Tv size={18} />}
-                    {item.type === "music" && <Mic size={18} />}
-                    {item.type === "anime" && (
-                      <Torii className="h-5 w-5 stroke-[1.75]" />
-                    )}
-                  </div>
-                  {item.rating > 0 && (
-                    <div className="flex items-center gap-1 bg-amber-50 text-amber-600 px-2 py-1 rounded-lg dark:bg-amber-900/20 dark:text-amber-400">
-                      <Star size={12} className="fill-amber-600" />
-                      <span className="text-xs font-black">{item.rating}</span>
-                    </div>
-                  )}
-
-                  {item.type !== "music" && (
-                    <span
-                      className={`text-[10px] uppercase font-bold px-2 py-1 rounded-full 
-                      ${
-                        item.status === "completed"
-                          ? "bg-emerald-50 text-emerald-600"
-                          : item.status === "watching"
-                            ? "bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400"
-                            : item.status === "dropped"
-                              ? "bg-red-50 text-red-600"
-                              : "bg-purple-50 text-purple-600"
-                      }`}
-                    >
-                      {statusTranslation[item.status] || item.status}
-                    </span>
-                  )}
-
-                  {item.isInactive && (
-                    <span className="flex items-center gap-1 text-[9px] text-red-500 font-black animate-pulse">
-                      <Clock size={10} /> INACTIVO HACE +30 DÍAS
-                    </span>
-                  )}
-                </div>
-                <h3
-                  className="font-bold text-lg truncate cursor-pointer transition-colors dark:text-white"
-                  onClick={() => {
-                    if (item.type === "music") {
-                      setSelectedItemForLyrics(item);
-                    } else {
-                      handleEditClick(item);
-                    }
-                  }}
-                >
-                  {(item.type === "series" || item.type === "anime") && (
-                    <span className="shrink-0 text-[10px] bg-black text-white px-2 m-2 py-0.5 rounded-md font-black">
-                      S{Number(item.season) || 1}
-                    </span>
-                  )}
+                {/* 1. IMAGEN DE FONDO (POSTER) */}
+                <div className="absolute inset-0 z-0">
                   {item.type === "music" ? (
-                    // NOMBRE DEL ARTISTA
-                    <div className="flex flex-col mb-1">
-                      <span className="text-black dark:text-white font-bold leading-tight">
-                        {item.artist || item.title || "Artista Desconocido"}
-                      </span>
-
-                      {/* NOMBRE DEL ALBUM */}
-                      {item.album && (
-                        <span className="text-[11px] text-gray-400 dark:text-zinc-500 font-semibold mt-1.5 uppercase tracking-wider truncate">
-                          {item.album}
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="truncate">{item.title}</span>
-                  )}
-                </h3>
-
-                {item.type === "music" && item.tracks?.length > 0 && (
-                  <div className="mb-3">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-1">
-                      {item.tracks.slice(0, 4).map((track, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center gap-2 text-[11px] text-gray-500 dark:text-zinc-400"
-                        >
-                          <div
-                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${track.completed ? "bg-emerald-400" : "bg-gray-300 dark:bg-zinc-700"}`}
-                          />
-                          <span className="truncate">{track.title}</span>
-                        </div>
-                      ))}
-                      {item.tracks.length > 4 && (
-                        <p className="text-[9px] text-gray-400 dark:text-zinc-500 font-bold pl-1 uppercase tracking-tighter">
-                          + {item.tracks.length - 4} canciones más
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Barra de progreso */}
-                {item.progress && (
-                  <div className="mt-4 space-y-2">
-                    <div className="flex justify-between items-center text-[10px] font-bold text-gray-400 dark:text-zinc-500">
-                      <span className="tracking-widest">
-                        {item.type === "music" ? "PROGRESO" : "EPISODIOS"}
-                      </span>
-                      {/* Si no hay progreso definido, mostramos 0/1 por defecto */}
-                      <div className="flex items-center gap-2">
-                        <span>
-                          {item.progress?.current || 0} /{" "}
-                          {item.progress?.total || 1}
-                        </span>
+                    // DISEÑO ESPECIAL MÚSICA (VINILO) 💿
+                    <div className="w-full h-full relative p-6 flex flex-col items-center justify-start pt-10 bg-gradient-to-br from-gray-900 to-black">
+                      {/* VINILO GIRATORIO (Que sale al hover) */}
+                      <div className="absolute top-10 w-48 h-48 rounded-full bg-black border-4 border-gray-800 shadow-xl group-hover:translate-x-12 group-hover:rotate-[360deg] transition-all duration-1000 ease-out z-0 flex items-center justify-center">
+                        <div className="w-16 h-16 rounded-full border-4 border-gray-800 bg-gradient-to-tr from-pink-500 to-purple-500 opacity-80 animate-pulse"></div>
+                        {/* Ranuras del vinilo */}
+                        <div className="absolute inset-0 rounded-full border border-white/5"></div>
+                        <div className="absolute inset-2 rounded-full border border-white/5"></div>
+                        <div className="absolute inset-4 rounded-full border border-white/5"></div>
                       </div>
 
-                      {/* Botón de incremento rápido (Solo si no está completado) */}
-                      {item.status !== "completed" && item.type !== "music" && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation(); // Función nueva: evita conflictos si luego hacemos clic en la tarjeta.
-                            handleQuickUpdate(item);
-                          }}
-                          className="p-1 bg-gray-100 hover:bg-black hover:text-white rounded-md transition-all group 
-                          dark:bg-zinc-800 dark:hover:bg-zinc-200 dark:text-zinc-400 dark:hover:text-black"
-                          title="Siguiente capítulo"
-                        >
-                          <PlusCircle
-                            size={14}
-                            className="group-active:scale-90"
+                      {/* CARÁTULA (Sobre el vinilo) */}
+                      <div className="relative z-10 w-48 h-48 shadow-2xl rounded-lg overflow-hidden group-hover:-translate-x-6 transition-transform duration-500 ease-out">
+                        {item.poster ? (
+                          <img
+                            src={item.poster}
+                            className="w-full h-full object-cover"
+                            alt=""
                           />
-                        </button>
+                        ) : (
+                          <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                            <Music size={32} className="text-gray-600" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Gradiente inferior oscuro */}
+                      <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black via-black/80 to-transparent z-20 pointer-events-none" />
+                    </div>
+                  ) : (
+                    // DISEÑO ESTÁNDAR (VIDEO) 🎬
+                    <>
+                      {item.poster ? (
+                        <img
+                          src={item.poster}
+                          alt={item.title}
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gray-100 dark:bg-zinc-800 flex flex-col items-center justify-center p-6 text-center">
+                          <Film
+                            size={48}
+                            className="text-gray-300 dark:text-zinc-700 mb-2"
+                          />
+                          <span className="text-xs font-bold text-gray-400 dark:text-zinc-600 uppercase tracking-widest">
+                            Sin Portada
+                          </span>
+                        </div>
                       )}
+                      {/* Gradiente para legibilidad */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90 transition-opacity duration-300 group-hover:opacity-80" />
+                    </>
+                  )}
+                </div>
+
+                {/* 2. CONTENIDO (Z-INDEX SUPERIOR) */}
+                <div className="relative z-10 flex flex-col h-full p-5 text-white">
+                  {/* HEADER DE LA CARD: Badges SUPERIORES */}
+                  <div className="flex justify-between items-start">
+                    {/* Badge de TIPO */}
+                    <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md rounded-full px-3 py-1.5 border border-white/10">
+                      {item.type === "movie" && (
+                        <Film size={14} className="text-blue-400" />
+                      )}
+                      {item.type === "series" && (
+                        <Tv size={14} className="text-purple-400" />
+                      )}
+                      {item.type === "music" && (
+                        <Mic size={14} className="text-pink-400" />
+                      )}
+                      {item.type === "anime" && (
+                        <Torii className="h-3.5 w-3.5 stroke-[2] text-red-400" />
+                      )}
+
+                      <span className="text-[10px] font-black uppercase tracking-wider">
+                        {item.type === "movie"
+                          ? "Cine"
+                          : item.type === "series"
+                            ? "Serie"
+                            : item.type === "anime"
+                              ? "Anime"
+                              : "Música"}
+                      </span>
                     </div>
 
-                    <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden dark:bg-zinc-800">
-                      <div
-                        className="bg-black h-full transition-all duration-700 ease-out dark:bg-zinc-100"
-                        style={{
-                          width: `${((item.progress?.current || 0) / (item.progress?.total || 1)) * 100}%`,
-                        }}
-                      />
-                    </div>
+                    {/* Badge de ESTADO (Solo si tiene) */}
+                    {item.status && (
+                      <span
+                        className={`text-[10px] uppercase font-black px-2.5 py-1 rounded-full backdrop-blur-md border border-white/10
+                       ${
+                         item.status === "completed"
+                           ? "bg-emerald-500/20 text-emerald-300"
+                           : item.status === "watching"
+                             ? "bg-amber-500/20 text-amber-300"
+                             : item.status === "dropped"
+                               ? "bg-red-500/20 text-red-300"
+                               : "bg-purple-500/20 text-purple-300"
+                       }`}
+                      >
+                        {item.type === "music"
+                          ? musicStatusTranslation[item.status]
+                          : statusTranslation[item.status]}
+                      </span>
+                    )}
                   </div>
-                )}
-                <div className="mt-4 flex items-center gap-2 text-gray-400 text-sm">
-                  {new Date() - new Date(item.createdAt) < 60 * 60 * 1000 && (
-                    <div className="flex items-center gap-1 text-emerald-500 font-bold text-[10px]">
-                      <Clock size={12} />
-                      <span>Recien agregado</span>
-                    </div>
-                  )}
-                  <button
-                    onClick={() => handleDelete(item._id)}
-                    className="ml-auto p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+
+                  {/* CUERPO CENTRAL (Espaciador) */}
+                  <div className="flex-1" />
+
+                  {/* INFO PRINCIPAL (Titulo y Detalles) */}
+                  <div className="mb-4 space-y-1">
+                    {/* Temporada (Si aplica) */}
+                    {(item.type === "series" || item.type === "anime") && (
+                      <div className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm px-2 py-0.5 rounded-md mb-1">
+                        <span className="text-[9px] font-bold tracking-widest uppercase">
+                          TEMPORADA
+                        </span>
+                        <span className="text-[10px] font-black bg-white text-black px-1.5 rounded-sm">
+                          {Number(item.season) || 1}
+                        </span>
+                      </div>
+                    )}
+
+                    <h3
+                      className="font-black text-2xl leading-none tracking-tight line-clamp-2 cursor-pointer hover:text-gray-200 transition-colors"
+                      onClick={() => {
+                        if (item.type === "music") {
+                          setSelectedItemForLyrics(item);
+                          // SMART PLAY: Si está pendiente, pasa a "En rotación"
+                          if (item.status === "pending") {
+                            handleSmartStatusUpdate(item, "watching");
+                          }
+                        }
+                      }}
+                    >
+                      {item.artist || item.title}
+                    </h3>
+
+                    {item.album && (
+                      <p className="text-xs font-medium text-gray-300 uppercase tracking-widest line-clamp-1">
+                        {item.album}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* BARRA DE PROGRESO / CANCIONES */}
+                  <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/5 space-y-3">
+                    {/* Caso MUSICA: Lista de tracks preview */}
+                    {item.type === "music" ? (
+                      <div className="text-[10px] space-y-1.5">
+                        {item.tracks?.slice(0, 2).map((t, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center gap-2 text-gray-300"
+                          >
+                            <div
+                              className={`w-1.5 h-1.5 rounded-full ${t.completed ? "bg-emerald-400" : "bg-white/20"}`}
+                            />
+                            <span className="truncate">{t.title}</span>
+                          </div>
+                        ))}
+                        {item.tracks?.length > 2 && (
+                          <span className="text-gray-500 text-[9px] block pl-3.5">
+                            + {item.tracks.length - 2} canciones más...
+                          </span>
+                        )}
+                        {(!item.tracks || item.tracks.length === 0) && (
+                          <span className="text-gray-500 italic block text-center py-1">
+                            Sin canciones aún
+                          </span>
+                        )}
+                        {/* Footer MÚSICA: Editar / Borrar */}
+                        <div className="pt-2 flex justify-end items-center gap-2 border-t border-white/5 mt-2">
+                          <button
+                            onClick={() => handleEditClick(item)}
+                            className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                            title="Editar"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(item._id)}
+                            className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-white/10 rounded-lg transition-all"
+                            title="Eliminar"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      // Caso VIDEO: Barra de progreso
+                      <>
+                        <div className="flex justify-between items-end text-xs font-bold text-gray-300">
+                          <span className="uppercase tracking-wider text-[9px] text-gray-400">
+                            Progreso
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-white text-sm">
+                              {item.progress?.current || 0}
+                              <span className="text-gray-500 text-[10px] mx-0.5">
+                                /
+                              </span>
+                              {item.progress?.total || 1}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="relative h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                          <div
+                            className={`absolute top-0 left-0 h-full rounded-full transition-all duration-700
+                                ${item.progress?.current === item.progress?.total ? "bg-emerald-400" : "bg-white"}`}
+                            style={{
+                              width: `${((item.progress?.current || 0) / Math.max(item.progress?.total || 1, 1)) * 100}%`,
+                            }}
+                          />
+                        </div>
+
+                        {/* Botones de acción rápida */}
+                        <div className="pt-1 flex justify-between items-center">
+                          {/* Botón +1 : Solo si no está completo */}
+                          {item.progress?.current < item.progress?.total ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleQuickUpdate(item);
+                              }}
+                              className="flex items-center gap-1.5 bg-white text-black px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-gray-200 transition-colors"
+                            >
+                              <PlusCircle size={12} />
+                              Visto
+                            </button>
+                          ) : (
+                            <div className="flex items-center gap-1 text-emerald-400 text-[10px] font-black uppercase tracking-wider">
+                              <Star size={10} className="fill-current" />{" "}
+                              Completado
+                            </div>
+                          )}
+
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleEditClick(item)}
+                              className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                              title="Editar"
+                            >
+                              <Edit3 size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(item._id)}
+                              className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-white/10 rounded-lg transition-all"
+                              title="Eliminar"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -552,6 +794,7 @@ const Dashboard = () => {
             setSelectedItemForLyrics(null);
             handleEditClick(item);
           }}
+          onSaveLyrics={handleLyricsSave}
         />
       )}
     </>
