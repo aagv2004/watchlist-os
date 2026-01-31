@@ -10,8 +10,10 @@ import {
   AlignRight,
   Check,
   Languages,
+  Sparkles,
 } from "lucide-react";
 import Swal from "sweetalert2";
+import api from "../api/axios.js";
 
 const MusicLyricsView = ({ item, onClose, onEdit, onSaveLyrics }) => {
   // Guardamos solo el Título para derivar el objeto actualizado de las props (item.tracks)
@@ -31,7 +33,68 @@ const MusicLyricsView = ({ item, onClose, onEdit, onSaveLyrics }) => {
     return () => (document.body.style.overflow = "unset");
   }, []);
 
-  // Ya no necesitamos el useEffect de sincronización porque 'activeTrack' se recalcula en cada render
+  // 4A. AUTO-TRANSLATE HANDLER 🪄
+  const handleAutoTranslate = async () => {
+    // Si ya hay traducción, preguntar si sobreescribir
+    if (activeTrack.translation && activeTrack.translation.trim() !== "") {
+      const result = await Swal.fire({
+        title: "¿Reemplazar traducción?",
+        text: "Ya existe una traducción. ¿Quieres generar una nueva automáticamente?",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Sí, reemplazar",
+        cancelButtonText: "Cancelar",
+      });
+      if (!result.isConfirmed) return;
+    }
+
+    // Efecto de carga
+    Swal.fire({
+      title: "Traduciendo...",
+      text: "Conectando con la IA de traducción 🧠",
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    try {
+      const { data } = await api.post("/translate", {
+        text: activeTrack.lyrics,
+      });
+
+      if (data.translation) {
+        // Actualizar estado local
+        const updatedTracks = item.tracks.map((t) =>
+          t.title === activeTrack.title
+            ? { ...t, translation: data.translation }
+            : t,
+        );
+        // Guardamos inmediatamente
+        onSaveLyrics(item, updatedTracks);
+
+        // Si estamos editando, actualizamos el editor visualmente también
+        if (editorRef.current && showTranslation) {
+          editorRef.current.innerHTML = data.translation.replace(
+            /\n/g,
+            "<br/>",
+          );
+        }
+
+        Swal.fire({
+          icon: "success",
+          title: "¡Traducido!",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+      }
+    } catch (error) {
+      console.error("Translation Error:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Error de traducción",
+        text: "El servicio no pudo traducir la letra en este momento.",
+      });
+    }
+  };
 
   const handleFormat = (command, value = null) => {
     document.execCommand(command, false, value);
@@ -230,6 +293,26 @@ const MusicLyricsView = ({ item, onClose, onEdit, onSaveLyrics }) => {
                         >
                           <AlignRight size={14} />
                         </button>
+                        {/* Botón Mágico de Traducción (Solo visible si estamos en modo Traducción) */}
+                        {showTranslation && (
+                          <>
+                            <button
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                handleAutoTranslate();
+                              }}
+                              className="p-1.5 hover:bg-purple-500/20 text-purple-300 hover:text-purple-200 rounded-md transition-colors flex items-center gap-1"
+                              title="Auto-Traducir"
+                            >
+                              <Sparkles size={14} />
+                              <span className="text-[10px] font-bold hidden md:inline">
+                                AUTO
+                              </span>
+                            </button>
+                            <div className="w-px h-4 bg-white/10 mx-1 hidden md:block"></div>
+                          </>
+                        )}
+
                         <div className="w-px h-4 bg-white/10 mx-1 hidden md:block"></div>
 
                         <button
