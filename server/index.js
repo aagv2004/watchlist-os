@@ -39,10 +39,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/items", itemRoutes);
 app.use("/api/tmdb", tmdbRoutes);
 app.use("/api/music", musicRoutes);
-app.use(
-  "/api/translate",
-  import("./routes/translateRoutes.js").then((m) => m.default),
-);
+app.use("/api/translate", translateRoutes);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
