@@ -7,6 +7,7 @@ import { errorHandler } from "./middleware/errorMiddleware.js";
 import authRoutes from "./routes/authRoutes.js";
 import tmdbRoutes from "./routes/tmdbRoutes.js";
 import musicRoutes from "./routes/musicRoutes.js";
+import translateRoutes from "./routes/translateRoutes.js";
 
 const app = express();
 //Middleware

@@ -234,15 +234,15 @@ const MusicLyricsView = ({ item, onClose, onEdit, onSaveLyrics }) => {
                     {/* Espaciador fijo para evitar saltos */}
                     {!isEditing ? (
                       <div className="flex gap-3">
-                        <button
-                          onClick={() => setShowTranslation(!showTranslation)}
-                          className={`flex items-center gap-2 px-5 py-1.5 rounded-full border transition-all duration-300 ${showTranslation ? "bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.4)]" : "bg-white/5 hover:bg-white/10 text-white/50 hover:text-white border-white/5 hover:border-white/20"}`}
-                        >
-                          <Languages size={12} />
-                          <span className="text-xs font-bold uppercase tracking-wider">
-                            {showTranslation ? "Original" : "Traducir"}
-                          </span>
-                        </button>
+                        {/* Botón traducción manual trigger si no hay traducción */}
+                        {!activeTrack.translation && (
+                          <button
+                            onClick={handleAutoTranslate}
+                            className="flex items-center gap-2 px-5 py-1.5 rounded-full border border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/10 transition-all text-xs font-bold uppercase tracking-wider"
+                          >
+                            <Sparkles size={12} /> Traducir
+                          </button>
+                        )}
 
                         <button
                           onClick={() => setIsEditing(true)}
@@ -364,34 +364,55 @@ const MusicLyricsView = ({ item, onClose, onEdit, onSaveLyrics }) => {
                             : "",
                       }}
                     />
-                  ) : // VISUALIZACIÓN LECTURA
-                  (
-                      showTranslation
-                        ? activeTrack.translation
-                        : activeTrack.lyrics
-                    ) ? (
-                    <div
-                      className="text-xl md:text-2xl leading-relaxed font-medium text-white/90 drop-shadow-md [&>div]:mb-4"
-                      dangerouslySetInnerHTML={{
-                        __html: showTranslation
-                          ? activeTrack.translation
-                          : activeTrack.lyrics,
-                      }}
-                    />
                   ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-white/30 space-y-4">
-                      <div className="p-4 rounded-full bg-white/5">
-                        {showTranslation ? (
-                          <Languages size={32} />
-                        ) : (
-                          <Music size={32} />
-                        )}
-                      </div>
-                      <p className="font-medium">
-                        {showTranslation
-                          ? "No hay traducción disponible"
-                          : "No hay letra disponible"}
-                      </p>
+                    // VISUALIZACIÓN LECTURA (INTERLEAVED / INTERCALADA)
+                    <div className="text-center pb-20">
+                      {activeTrack.lyrics ? (
+                        // Procesamiento para mostrar líneas intercaladas
+                        (() => {
+                          // Limpiamos etiquetas HTML básicas si vienen del editor rico para poder separar por líneas
+                          // Ojo: Si el usuario usó mucho formato HTML, esto puede ser tricky.
+                          // Asumimos texto plano con saltos de línea para el "Auto-lyrics".
+
+                          const cleanLyrics = activeTrack.lyrics
+                            .replace(/<br\s*\/?>/gi, "\n")
+                            .replace(/<\/?[^>]+(>|$)/g, ""); // Strip tags basic
+                          const cleanTranslation = activeTrack.translation
+                            ? activeTrack.translation
+                                .replace(/<br\s*\/?>/gi, "\n")
+                                .replace(/<\/?[^>]+(>|$)/g, "")
+                            : "";
+
+                          const originalLines = cleanLyrics.split(/\r?\n/);
+                          const translatedLines = cleanTranslation
+                            ? cleanTranslation.split(/\r?\n/)
+                            : [];
+
+                          return originalLines.map((line, idx) => (
+                            <div key={idx} className="mb-6">
+                              {/* Linea Original */}
+                              <p className="text-xl md:text-3xl font-bold text-white leading-tight drop-shadow-md">
+                                {line}
+                              </p>
+
+                              {/* Linea Traducida (Si existe y tiene contenido) */}
+                              {translatedLines[idx] &&
+                                translatedLines[idx].trim() !== "" && (
+                                  <p className="text-lg md:text-xl font-medium text-emerald-400 mt-1 animate-in fade-in slide-in-from-bottom-1">
+                                    {translatedLines[idx]}
+                                  </p>
+                                )}
+                            </div>
+                          ));
+                        })()
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-white/30 space-y-4 py-20">
+                          <div className="p-4 rounded-full bg-white/5">
+                            <Music size={32} />
+                          </div>
+                          <p className="font-medium">No hay letra disponible</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
