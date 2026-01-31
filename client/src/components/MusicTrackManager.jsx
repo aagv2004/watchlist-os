@@ -55,26 +55,6 @@ const MusicTrackManager = ({ tracks, onChange, artistName }) => {
 
         if (data.lyrics) {
           updatedTracks[i].lyrics = data.lyrics;
-
-          // AUTO-TRANSLATE CHAIN 🔗
-          try {
-            // Pequeña pausa para no saturar APIs
-            await new Promise((r) => setTimeout(r, 500));
-
-            // Usamos nuestro endpoint interno
-            const translateRes = await api.post("/translate", {
-              text: data.lyrics,
-            });
-            if (translateRes.data.translation) {
-              updatedTracks[i].translation = translateRes.data.translation;
-            }
-          } catch (trError) {
-            console.warn(
-              "Translation failed for track:",
-              updatedTracks[i].title,
-            );
-          }
-
           successCount++;
         }
       } catch (error) {
@@ -93,7 +73,7 @@ const MusicTrackManager = ({ tracks, onChange, artistName }) => {
       Swal.fire({
         icon: "success",
         title: "¡Letras encontradas!",
-        text: `Se añadieron letras (y traducciones) para ${successCount} canciones.`,
+        text: `Se añadieron letras para ${successCount} canciones.`,
         timer: 2000,
       });
     } else {

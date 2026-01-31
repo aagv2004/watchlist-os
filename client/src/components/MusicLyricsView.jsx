@@ -10,10 +10,8 @@ import {
   AlignRight,
   Check,
   Languages,
-  Sparkles,
 } from "lucide-react";
 import Swal from "sweetalert2";
-import api from "../api/axios.js";
 
 const MusicLyricsView = ({ item, onClose, onEdit, onSaveLyrics }) => {
   // Guardamos solo el Título para derivar el objeto actualizado de las props (item.tracks)
@@ -21,7 +19,6 @@ const MusicLyricsView = ({ item, onClose, onEdit, onSaveLyrics }) => {
     item.tracks[0]?.title,
   );
   const [isEditing, setIsEditing] = useState(false);
-  const [showTranslation, setShowTranslation] = useState(false);
   const editorRef = useRef(null);
 
   // Derivar el track activo siempre de la prop 'item' más reciente
@@ -32,69 +29,6 @@ const MusicLyricsView = ({ item, onClose, onEdit, onSaveLyrics }) => {
     document.body.style.overflow = "hidden";
     return () => (document.body.style.overflow = "unset");
   }, []);
-
-  // 4A. AUTO-TRANSLATE HANDLER 🪄
-  const handleAutoTranslate = async () => {
-    // Si ya hay traducción, preguntar si sobreescribir
-    if (activeTrack.translation && activeTrack.translation.trim() !== "") {
-      const result = await Swal.fire({
-        title: "¿Reemplazar traducción?",
-        text: "Ya existe una traducción. ¿Quieres generar una nueva automáticamente?",
-        icon: "warning",
-        showCancelButton: true,
-        confirmButtonText: "Sí, reemplazar",
-        cancelButtonText: "Cancelar",
-      });
-      if (!result.isConfirmed) return;
-    }
-
-    // Efecto de carga
-    Swal.fire({
-      title: "Traduciendo...",
-      text: "Conectando con la IA de traducción 🧠",
-      allowOutsideClick: false,
-      didOpen: () => Swal.showLoading(),
-    });
-
-    try {
-      const { data } = await api.post("/translate", {
-        text: activeTrack.lyrics,
-      });
-
-      if (data.translation) {
-        // Actualizar estado local
-        const updatedTracks = item.tracks.map((t) =>
-          t.title === activeTrack.title
-            ? { ...t, translation: data.translation }
-            : t,
-        );
-        // Guardamos inmediatamente
-        onSaveLyrics(item, updatedTracks);
-
-        // Si estamos editando, actualizamos el editor visualmente también
-        if (editorRef.current && showTranslation) {
-          editorRef.current.innerHTML = data.translation.replace(
-            /\n/g,
-            "<br/>",
-          );
-        }
-
-        Swal.fire({
-          icon: "success",
-          title: "¡Traducido!",
-          timer: 1500,
-          showConfirmButton: false,
-        });
-      }
-    } catch (error) {
-      console.error("Translation Error:", error);
-      Swal.fire({
-        icon: "error",
-        title: "Error de traducción",
-        text: "El servicio no pudo traducir la letra en este momento.",
-      });
-    }
-  };
 
   const handleFormat = (command, value = null) => {
     document.execCommand(command, false, value);
@@ -117,9 +51,7 @@ const MusicLyricsView = ({ item, onClose, onEdit, onSaveLyrics }) => {
 
     // 2. Actualizar tracks
     const updatedTracks = item.tracks.map((t) =>
-      t.title === activeTrack.title
-        ? { ...t, [showTranslation ? "translation" : "lyrics"]: newContent }
-        : t,
+      t.title === activeTrack.title ? { ...t, lyrics: newContent } : t,
     );
 
     // 3. Guardar arriba
@@ -234,16 +166,6 @@ const MusicLyricsView = ({ item, onClose, onEdit, onSaveLyrics }) => {
                     {/* Espaciador fijo para evitar saltos */}
                     {!isEditing ? (
                       <div className="flex gap-3">
-                        {/* Botón traducción manual trigger si no hay traducción */}
-                        {!activeTrack.translation && (
-                          <button
-                            onClick={handleAutoTranslate}
-                            className="flex items-center gap-2 px-5 py-1.5 rounded-full border border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/10 transition-all text-xs font-bold uppercase tracking-wider"
-                          >
-                            <Sparkles size={12} /> Traducir
-                          </button>
-                        )}
-
                         <button
                           onClick={() => setIsEditing(true)}
                           className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all text-xs font-bold uppercase tracking-wider"
@@ -305,25 +227,6 @@ const MusicLyricsView = ({ item, onClose, onEdit, onSaveLyrics }) => {
                         >
                           <AlignRight size={14} />
                         </button>
-                        {/* Botón Mágico de Traducción (Solo visible si estamos en modo Traducción) */}
-                        {showTranslation && (
-                          <>
-                            <button
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                handleAutoTranslate();
-                              }}
-                              className="p-1.5 hover:bg-purple-500/20 text-purple-300 hover:text-purple-200 rounded-md transition-colors flex items-center gap-1"
-                              title="Auto-Traducir"
-                            >
-                              <Sparkles size={14} />
-                              <span className="text-[10px] font-bold hidden md:inline">
-                                AUTO
-                              </span>
-                            </button>
-                            <div className="w-px h-4 bg-white/10 mx-1 hidden md:block"></div>
-                          </>
-                        )}
 
                         <div className="w-px h-4 bg-white/10 mx-1 hidden md:block"></div>
 
@@ -355,56 +258,21 @@ const MusicLyricsView = ({ item, onClose, onEdit, onSaveLyrics }) => {
                       contentEditable
                       suppressContentEditableWarning
                       dangerouslySetInnerHTML={{
-                        __html: showTranslation
-                          ? activeTrack.translation
-                            ? activeTrack.translation.replace(/\n/g, "<br/>")
-                            : "<i>(Escribe aquí la traducción...)</i>"
-                          : activeTrack.lyrics
-                            ? activeTrack.lyrics.replace(/\n/g, "<br/>")
-                            : "",
+                        __html: activeTrack.lyrics
+                          ? activeTrack.lyrics.replace(/\n/g, "<br/>")
+                          : "",
                       }}
                     />
                   ) : (
-                    // VISUALIZACIÓN LECTURA (INTERLEAVED / INTERCALADA)
+                    // VISUALIZACIÓN LECTURA
                     <div className="text-center pb-20">
                       {activeTrack.lyrics ? (
-                        // Procesamiento para mostrar líneas intercaladas
-                        (() => {
-                          // Limpiamos etiquetas HTML básicas si vienen del editor rico para poder separar por líneas
-                          // Ojo: Si el usuario usó mucho formato HTML, esto puede ser tricky.
-                          // Asumimos texto plano con saltos de línea para el "Auto-lyrics".
-
-                          const cleanLyrics = activeTrack.lyrics
-                            .replace(/<br\s*\/?>/gi, "\n")
-                            .replace(/<\/?[^>]+(>|$)/g, ""); // Strip tags basic
-                          const cleanTranslation = activeTrack.translation
-                            ? activeTrack.translation
-                                .replace(/<br\s*\/?>/gi, "\n")
-                                .replace(/<\/?[^>]+(>|$)/g, "")
-                            : "";
-
-                          const originalLines = cleanLyrics.split(/\r?\n/);
-                          const translatedLines = cleanTranslation
-                            ? cleanTranslation.split(/\r?\n/)
-                            : [];
-
-                          return originalLines.map((line, idx) => (
-                            <div key={idx} className="mb-6">
-                              {/* Linea Original */}
-                              <p className="text-xl md:text-3xl font-bold text-white leading-tight drop-shadow-md">
-                                {line}
-                              </p>
-
-                              {/* Linea Traducida (Si existe y tiene contenido) */}
-                              {translatedLines[idx] &&
-                                translatedLines[idx].trim() !== "" && (
-                                  <p className="text-lg md:text-xl font-medium text-emerald-400 mt-1 animate-in fade-in slide-in-from-bottom-1">
-                                    {translatedLines[idx]}
-                                  </p>
-                                )}
-                            </div>
-                          ));
-                        })()
+                        <div
+                          className="text-xl md:text-2xl leading-relaxed font-medium text-white/90 drop-shadow-md [&>div]:mb-4 whitespace-pre-line"
+                          dangerouslySetInnerHTML={{
+                            __html: activeTrack.lyrics.replace(/\n/g, "<br/>"),
+                          }}
+                        />
                       ) : (
                         <div className="flex flex-col items-center justify-center h-full text-white/30 space-y-4 py-20">
                           <div className="p-4 rounded-full bg-white/5">
