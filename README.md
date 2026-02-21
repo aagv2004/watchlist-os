@@ -82,20 +82,3 @@ npm install
 ```bash
 npm run dev
 ```
-
-## Estructura del Proyecto
-
-watchlist-os/
-├── client/ # Aplicación Frontend en React
-│ ├── public/ # Recursos estáticos (svg, iconos)
-│ └── src/
-│ ├── api/ # Configuración de Axios
-│ ├── components/ # Componentes reutilizables (Layout, Modales, Torii)
-│ ├── context/ # React Context (AuthContext)
-│ └── pages/ # Vistas principales (Dashboard, Login, Register)
-└── server/ # API REST Backend en Node/Express
-├── config/ # Configuración de la base de datos (db.js)
-├── controllers/ # Lógica de las rutas (auth, items, tmdb, music)
-├── middleware/ # Middlewares personalizados (auth, error handler)
-├── models/ # Esquemas de Mongoose (User, Items)
-└── routes/ # Definición de endpoints de la API
