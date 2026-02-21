@@ -65,7 +65,7 @@ npm install
 npm run dev
 ```
 
-**4. Configuración del Frontend **
+**4. Configuración del Frontend**
 
 - Abre una nueva terminal y navega a la carpeta del cliente:
 
@@ -82,3 +82,4 @@ npm install
 ```bash
 npm run dev
 ```
+
