@@ -43,3 +43,30 @@ export const getSeasonDetails = async (tvId, seasonNumber) => {
     return null; // Retornamos null si no existe la temporada (ej. temporada futura)
   }
 };
+
+export const getWatchProviders = async (type, tmdbId, region) => {
+  try {
+    const response = await tmdbApi.get(`/${type}/${tmdbId}/watch/providers`);
+
+    const regionData = response.data?.results?.[region];
+
+    if (!regionData) return null;
+
+    const mapProviders = (arr = []) =>
+      arr.map((p) => ({
+        id: p.provider_id,
+        name: p.provider_name,
+        logoPath: p.logo_path,
+      }));
+
+    return {
+      link: regionData.link,
+      flatrate: mapProviders(regionData.flatrate),
+      rent: mapProviders(regionData.rent),
+      buy: mapProviders(regionData.buy),
+    };
+  } catch (error) {
+    console.error("Error fetching watch providers:", error.message);
+    return null;
+  }
+};

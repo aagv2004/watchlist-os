@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import {
   PlusCircle,
   Film,
@@ -13,6 +13,8 @@ import {
   Sun,
   Moon,
   Edit3,
+  CircleAlert,
+  LayoutDashboard,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import api from "../api/axios.js";
@@ -31,6 +33,8 @@ const Dashboard = () => {
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [hasNotifiedInactive, setHasNotifiedInactive] = useState(false);
   const [selectedItemForLyrics, setSelectedItemForLyrics] = useState(null);
+  const [providersByItem, setProvidersByItem] = useState({});
+  const [loadingProviderFor, setLoadingProviderFor] = useState(null);
 
   const fetchItems = async () => {
     try {
@@ -40,6 +44,54 @@ const Dashboard = () => {
       console.error("Error al traer items:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLoadProviders = async (item) => {
+    if (!item.tmdbId || !item.type) return;
+
+    const tmdbType = item.type === "series" ? "tv" : "movie";
+
+    setLoadingProviderFor(item._id);
+
+    try {
+      const { data } = await api.get("/tmdb/watch-providers", {
+        params: {
+          type: tmdbType,
+          tmdbId: String(item.tmdbId),
+          region: "ES",
+        },
+      });
+
+      console.log("watch-providers data:", data);
+
+      setProvidersByItem((prev) => ({
+        ...prev,
+        [item._id]: data,
+      }));
+    } catch (error) {
+      const apiMessage = error?.response?.data?.message;
+      console.error("Error al obtener proveedores:", apiMessage || error);
+
+      if (apiMessage === "Proveedor de streaming no encontrado") {
+        setProvidersByItem((prev) => ({
+          ...prev,
+          [item._id]: {
+            error: apiMessage,
+            flatrate: [],
+            rent: [],
+            buy: [],
+          },
+        }));
+      } else {
+        Swal.fire(
+          "Error",
+          apiMessage || "No se pudieron cargar las plataformas",
+          "error",
+        );
+      }
+    } finally {
+      setLoadingProviderFor(null);
     }
   };
 
@@ -242,7 +294,7 @@ const Dashboard = () => {
       if (priority[a.status] === priority[b.status]) {
         return (
           new Date(b.updatedAt || b.createdAt) -
-          new Date(a.updateAt || a.createdAt)
+          new Date(a.updatedAt || a.createdAt)
         );
       }
 
@@ -745,6 +797,112 @@ const Dashboard = () => {
                             </button>
                           </div>
                         </div>
+
+                        {/* Dónde ver */}
+                        <div className="mt-3 border-t pt-2">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                              Dónde ver
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => handleLoadProviders(item)}
+                              className="text-xs text-blue-400 hover:text-blue-300"
+                              disabled={loadingProviderFor === item._id}
+                            >
+                              {loadingProviderFor === item._id
+                                ? "Cargando..."
+                                : providersByItem[item._id]
+                                  ? "Actualizar"
+                                  : "Cargar"}
+                            </button>
+                          </div>
+
+                          {loadingProviderFor === item._id && (
+                            <p className="text-xs text-gray-400">
+                              Buscando plataformas...
+                            </p>
+                          )}
+
+                          {loadingProviderFor !== item._id &&
+                            !providersByItem[item._id] && (
+                              <p className="text-xs text-gray-500">
+                                Pulsa en "Cargar" para ver plataformas.
+                              </p>
+                            )}
+
+                          {providersByItem[item._id] && (
+                            <>
+                              {providersByItem[item._id].error ? (
+                                <p className="text-xs text-red-500/50">
+                                  <CircleAlert
+                                    size={16}
+                                    className="inline-block ml-1 m-0.5"
+                                  />
+                                  {providersByItem[item._id].error}{" "}
+                                </p>
+                              ) : (
+                                <>
+                                  <div className="space-y-1">
+                                    {providersByItem[item._id].flatrate
+                                      ?.slice(0, 3)
+                                      .map((p) => (
+                                        <button
+                                          key={p.id}
+                                          type="button"
+                                          onClick={() => {
+                                            const link =
+                                              providersByItem[item._id].link;
+                                            if (link) {
+                                              window.open(
+                                                link,
+                                                "_blank",
+                                                "noopener,noreferrer",
+                                              );
+                                            }
+                                          }}
+                                          className="inline-flex items-center gap-1 rounded-full bg-gray-800 px-2 py-1 text-[10px]"
+                                        >
+                                          {p.logoPath && (
+                                            <img
+                                              src={`https://image.tmdb.org/t/p/w45${p.logoPath}`}
+                                              alt={p.name}
+                                              className="h-4 w-4 rounded"
+                                            />
+                                          )}
+                                          <span>{p.name}</span>
+                                        </button>
+                                      ))}
+                                  </div>
+
+                                  {providersByItem[item._id].link && (
+                                    <a
+                                      href={providersByItem[item._id].link}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="block text-[10px] text-blue-400 hover:text-blue-300 mt-1"
+                                    >
+                                      Ver más opciones en TMDB
+                                    </a>
+                                  )}
+
+                                  {providersByItem[item._id].flatrate
+                                    ?.length === 0 &&
+                                    providersByItem[item._id].rent?.length ===
+                                      0 &&
+                                    providersByItem[item._id].buy?.length ===
+                                      0 && (
+                                      <p className="text-xs text-gray-500">
+                                        No hay plataformas disponibles para esta
+                                        región.
+                                      </p>
+                                    )}
+                                </>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </>
                     )}
                   </div>
@@ -764,7 +922,7 @@ const Dashboard = () => {
 
         <button
           onClick={() => setIsModalOpen(true)}
-          className="fixed bottom-8 right-8 z-50 flex items-center group shadow-2xl"
+          className="fixed md:bottom-8 right-8 z-50 flex items-center group shadow-2xl bottom-20"
         >
           <div className="absolute inset-0 bg-black/20 dark:bg-white/5 rounded-full -z-10 group-hover:bg-black/40 transition-all duration-500" />
           <div className="bg-black dark:bg-zinc-900 text-white flex items-center gap-3 px-6 py-4 rounded-2xl hover:scale-105 active:scale-95 transition-all duration-300 border border-white/10 dark:border-zinc-700/50">
@@ -778,6 +936,7 @@ const Dashboard = () => {
           </div>
         </button>
       </div>
+
       {/* ✨El modal✨ */}
       <ItemModal
         isOpen={isModalOpen}

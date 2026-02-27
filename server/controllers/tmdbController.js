@@ -56,3 +56,28 @@ export const getSeasonDetailsController = async (req, res) => {
     res.status(500).json({ message: "Error obteniendo detalles de temporada" });
   }
 };
+
+export const getWatchProviders = async (req, res, next) => {
+  const { type, tmdbId } = req.query;
+  const region = req.query.region || "ES";
+
+  if (!type || !tmdbId) {
+    return res.status(400).json({ message: "Faltan parámetros: type, tmdbId" });
+  }
+
+  try {
+    const watchProviders = await import("../services/tmdbService.js").then(
+      (module) => module.getWatchProviders(type, tmdbId, region),
+    );
+
+    if (!watchProviders) {
+      return res
+        .status(404)
+        .json({ message: "Proveedor de streaming no encontrado" });
+    }
+
+    res.json(watchProviders);
+  } catch (error) {
+    next(error);
+  }
+};

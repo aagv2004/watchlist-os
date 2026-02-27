@@ -11,6 +11,7 @@ import {
   Moon,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import NavMobile from "./NavMobile.jsx";
 
 const Layout = ({ children }) => {
   const { logout, user } = useContext(AuthContext);
@@ -101,7 +102,7 @@ const Layout = ({ children }) => {
         </div>
 
         {/* MENU: Scroll horizontal en móvil, Vertical en PC */}
-        <nav className="flex flex-row md:flex-col gap-2 p-2 px-4 md:p-4 overflow-x-auto md:overflow-y-auto no-scrollbar">
+        <nav className="hidden md:flex flex-row md:flex-col gap-2 p-2 px-4 md:p-4 overflow-x-auto md:overflow-y-auto no-scrollbar">
           {menuItems.map((item) => (
             <Link
               key={item.name}
@@ -230,6 +231,8 @@ const Layout = ({ children }) => {
       <main className="flex-1 p-4 md:p-8">
         <div className="max-w-5xl mx-auto dark:text-white">{children}</div>
       </main>
+
+      <NavMobile />
     </div>
   );
 };

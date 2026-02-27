@@ -7,7 +7,6 @@ import { errorHandler } from "./middleware/errorMiddleware.js";
 import authRoutes from "./routes/authRoutes.js";
 import tmdbRoutes from "./routes/tmdbRoutes.js";
 import musicRoutes from "./routes/musicRoutes.js";
-import musicRoutes from "./routes/musicRoutes.js";
 
 const app = express();
 //Middleware
@@ -38,6 +37,7 @@ connectDB();
 app.use("/api/auth", authRoutes);
 app.use("/api/items", itemRoutes);
 app.use("/api/music", musicRoutes);
+app.use("/api/tmdb", tmdbRoutes);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
