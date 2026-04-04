@@ -152,6 +152,7 @@ const Dashboard = () => {
         Toast.fire({
           icon: "success",
           title: `¡Avanzaste a ${newCurrent}/${item.progress.total}!`,
+          theme: "auto"
         });
       } catch (error) {
         console.error("Error al actualizar", error);
